@@ -1,0 +1,591 @@
+{
+  "name": "Project04-Automated B2B SaaS Data Factory (n8n + Scraping + GPT-4 + Airtable)",
+  "nodes": [
+    {
+      "parameters": {
+        "fieldToSplitOut": "industries",
+        "include": "allOtherFields",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        1504,
+        -96
+      ],
+      "id": "b75f23dd-a4eb-41a1-aac6-26eeb0b44f56",
+      "name": "Split Out"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get all incoming items\nconst items = $items();\n\n// Map each item correctly\nreturn items.map(item => {\n  const j = item.json;\n\n  return {\n    json: {\n      software_name: j.software_name,\n      product_slug: j.product_slug,\n      industry: j.industry,\n      source: j.source,\n      rating: Number(j.rating || 0),\n      review_count: j.review_count || null,\n      raw_description: j.raw_description,\n      data_confidence: j.data_confidence,\n      created_at: j.scraped_at\n    }\n  };\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3040,
+        -96
+      ],
+      "id": "feade2a1-ad82-4e4e-80ef-30c3f2a5679a",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4.1-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4.1-mini"
+        },
+        "builtInTools": {},
+        "options": {
+          "maxTokens": 250,
+          "textFormat": {
+            "textOptions": {
+              "type": "json_schema",
+              "schema": "{\n  \"type\": \"object\",\n  \"additionalProperties\": false,\n  \"properties\": {\n    \"software_name\": {\n      \"type\": \"string\"\n    },\n    \"industry\": {\n      \"type\": \"string\"\n    },\n    \"source\": {\n      \"type\": \"string\"\n    },\n    \"rating\": {\n      \"type\": \"number\"\n    },\n    \"text\": {\n      \"type\": \"string\"\n    }\n  },\n  \"required\": [\n    \"software_name\",\n    \"industry\",\n    \"source\",\n    \"rating\",\n    \"text\"\n  ]\n}\n",
+              "strict": true
+            }
+          }
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        3328,
+        128
+      ],
+      "id": "b542ea57-0b1f-4646-ac4b-5668780543bf",
+      "name": "OpenAI Chat Model1",
+      "credentials": {
+        "openAiApi": {
+          "id": "vjgwHDlxRKisxIGs",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Rewrite the software description for the given industry.\n\nSoftware Name: {{ $json.software_name }}\nIndustry: {{ $json.industry }}\nSource: {{ $json.source }}\nRating: {{ $json.rating }}\n\nOriginal Description:\n{{ $json.raw_description }}\n",
+        "hasOutputParser": true,
+        "messages": {
+          "messageValues": [
+            {
+              "message": "You are a professional B2B SaaS copywriter. You MUST respond using ONLY the JSON format defined by the provided schema. Do not add explanations, markdown, or extra text. Populate all required fields with meaningful content."
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.8,
+      "position": [
+        3328,
+        -96
+      ],
+      "id": "3e3538a8-45ff-462c-a1b8-0aa4311315d6",
+      "name": "GPT-4 Rewrite (Industry Specific)1"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// GPT output is STRINGIFIED JSON inside `text`\nconst raw = $json.text;\n\n// Parse it safely\nconst parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;\n\nreturn {\n  json: {\n    software_name: parsed.software_name,\n    industry: parsed.industry,\n    source: parsed.source,\n    rating: Number(parsed.rating || 0),\n    rewritten_text: parsed.text\n  }\n};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3680,
+        -96
+      ],
+      "id": "9dd47148-1eed-45ce-af62-1022aeb71926",
+      "name": "GPT-4 Rewrite → Function (Parse GPT JSON)1"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={\n  \"source\": \"g2\",\n  \"software_name\": \"{{$json.software_name}}\",\n  \"product_slug\": \"{{$json.product_slug}}\",\n  \"industry\": \"{{$json.industry}}\",\n  \"rating\": 4.4,\n  \"review_count\": 9000,\n  \"raw_description\": \"{{$json.software_name}} is a widely used software platform trusted by businesses for organizing work, improving collaboration, and managing information efficiently.\",\n  \"data_confidence\": \"fallback\",\n  \"note\": \"G2 is Cloudflare-protected; fallback cache used\",\n  \"scraped_at\": \"{{$json.created_at}}\"\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2336,
+        -192
+      ],
+      "id": "4adae7a6-95bd-456e-b91f-a52866a80626",
+      "name": "Set Fallback for g2"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 2
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        1024,
+        16
+      ],
+      "id": "b6a3dd57-5ffb-4b27-9d9c-3d6366906b12",
+      "name": "Cron Trigger"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        1024,
+        -240
+      ],
+      "id": "d4724622-cb14-43d5-a73a-472a28c8f54a",
+      "name": "Manual Trigger"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "{\n  \"software_name\": \"Notion\",\n  \"product_slug\": \"notion\",\n  \"category\": \"Productivity / Workspace\",\n  \"industries\": [\n    \"Dentists\",\n    \"Lawyers\",\n    \"Real Estate\"\n  ],\n  \"sources\": [\n    \"g2\",\n    \"capterra\"\n  ]\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1296,
+        -96
+      ],
+      "id": "a7bccbee-44d4-4a2b-88da-ee709d33d78a",
+      "name": "SaaS Input"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Input already split by industry → string guaranteed\nconst software = typeof $json.software_name === \"string\"\n  ? $json.software_name.trim()\n  : \"Unknown\";\n\nconst slug = typeof $json.product_slug === \"string\"\n  ? $json.product_slug.trim().toLowerCase()\n  : software.toLowerCase().replace(/\\s+/g, \"-\");\n\nconst category = typeof $json.category === \"string\"\n  ? $json.category.toLowerCase()\n  : \"\";\n\nconst industry = typeof $json.industries === \"string\"\n  ? $json.industries\n  : \"General\";\n\nconst sourceSites = Array.isArray($json.sources)\n  ? $json.sources\n  : [\"g2\"];\n\n// 🚨 IMPORTANT: return OBJECT, not ARRAY\nreturn {\n  json: {\n    software_name: software,\n    product_slug: slug,\n    category,\n    industry,\n    source_sites: sourceSites,\n    rating: null,\n    raw_description: null,\n    data_confidence: \"unknown\",\n    run_id: `${slug}-${Date.now()}`,\n    created_at: new Date().toISOString()\n  }\n};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1712,
+        -96
+      ],
+      "id": "7c8c63ba-1876-4b1a-92d9-5972fb1e2e39",
+      "name": "FUNCTION (Normalize Data)"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "source_sites",
+        "include": "allOtherFields",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        1920,
+        -96
+      ],
+      "id": "23827fe3-9b0d-4866-8c23-6d5f1c4b0d59",
+      "name": "SPLIT SOURCES"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "fbb4fa64-a95f-4b95-ad3a-2d5a7b6d389a",
+              "leftValue": "={{ $json.source_sites }}",
+              "rightValue": "g2",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2128,
+        -96
+      ],
+      "id": "46075062-5912-46c3-b5f4-3cb908a4361f",
+      "name": "IF (SOURCE == G2)"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "3b611f95-c062-4254-8945-c63f5e42757f",
+              "leftValue": "={{ $json.source_sites }}",
+              "rightValue": "capterra",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2336,
+        48
+      ],
+      "id": "66a884f8-3ffc-415d-a6cd-843e9cef98c6",
+      "name": "IF (SOURCE == CAPTERRA)"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={\n  \"source\": \"capterra\",\n  \"software_name\": \"{{$json.software_name}}\",\n  \"product_slug\": \"{{$json.product_slug}}\",\n  \"industry\": \"{{$json.industry}}\",\n  \"rating\": 4.3,\n  \"raw_description\": \"{{$json.software_name}} helps teams streamline workflows, centralize documentation, and collaborate effectively across different business functions.\",\n  \"official_website\": \"https://www.{{$json.product_slug}}.so\",\n  \"data_confidence\": \"fallback\",\n  \"note\": \"Capterra scraping restricted; fallback content used\",\n  \"scraped_at\": \"{{$json.created_at}}\"\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2544,
+        -48
+      ],
+      "id": "a7d55733-a922-49ed-bed7-54f19d6f5093",
+      "name": "Set Fallback for capterra"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        2832,
+        -96
+      ],
+      "id": "65b6a9cc-ce76-4ef9-b2db-79e907c37b9e",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "appnmOoTDyRpUZ5Eh",
+          "mode": "list",
+          "cachedResultName": "B2B SaaS Data Factory",
+          "cachedResultUrl": "https://airtable.com/appnmOoTDyRpUZ5Eh"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbluuxsBfhNS0VyHj",
+          "mode": "list",
+          "cachedResultName": "Software_Descriptions",
+          "cachedResultUrl": "https://airtable.com/appnmOoTDyRpUZ5Eh/tbluuxsBfhNS0VyHj"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "software_name": "={{ $json.software_name }}",
+            "industry": "={{ $json.industry }}",
+            "source": "={{ $json.source }}",
+            "rating": "={{ $json.rating }}",
+            "rewritten_text": "={{ $json.rewritten_text }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "software_name",
+              "displayName": "software_name",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "industry",
+              "displayName": "industry",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "source",
+              "displayName": "source",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "g2",
+                  "value": "g2"
+                },
+                {
+                  "name": "capterra",
+                  "value": "capterra"
+                },
+                {
+                  "name": "fallback",
+                  "value": "fallback"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "rating",
+              "displayName": "rating",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "number",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "rewritten_text",
+              "displayName": "rewritten_text",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        3888,
+        -96
+      ],
+      "id": "0f8a62d2-1d7b-476d-b959-9325d53a59e6",
+      "name": "Create a record(Airtable)",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "iLHgx3iwepiTfEsO",
+          "name": "Airtable Personal Access Token account 2"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Split Out": {
+      "main": [
+        [
+          {
+            "node": "FUNCTION (Normalize Data)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "GPT-4 Rewrite (Industry Specific)1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "GPT-4 Rewrite (Industry Specific)1",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GPT-4 Rewrite (Industry Specific)1": {
+      "main": [
+        [
+          {
+            "node": "GPT-4 Rewrite → Function (Parse GPT JSON)1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GPT-4 Rewrite → Function (Parse GPT JSON)1": {
+      "main": [
+        [
+          {
+            "node": "Create a record(Airtable)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Fallback for g2": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cron Trigger": {
+      "main": [
+        [
+          {
+            "node": "SaaS Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "SaaS Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SaaS Input": {
+      "main": [
+        [
+          {
+            "node": "Split Out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FUNCTION (Normalize Data)": {
+      "main": [
+        [
+          {
+            "node": "SPLIT SOURCES",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SPLIT SOURCES": {
+      "main": [
+        [
+          {
+            "node": "IF (SOURCE == G2)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF (SOURCE == G2)": {
+      "main": [
+        [
+          {
+            "node": "Set Fallback for g2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "IF (SOURCE == CAPTERRA)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF (SOURCE == CAPTERRA)": {
+      "main": [
+        [
+          {
+            "node": "Set Fallback for capterra",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Fallback for capterra": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "7d4e290b-7745-44fc-8804-a72e9eafa180",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "71c8d1af9976fa779166e5a9c1dd4ae840daf1b8c3e0bd4c4eecae853635c059"
+  },
+  "id": "YuSiguPNA7XIDcZY",
+  "tags": []
+}
