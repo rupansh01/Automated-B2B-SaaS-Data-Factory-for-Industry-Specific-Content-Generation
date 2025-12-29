@@ -217,10 +217,11 @@ It is not a demo — **it’s an applied AI automation system.**
 
 ---
 
-## 👤 Author
+## 👨‍💻 **AUTHOR**
 
 **Rupansh Kumar**
-AI Automation & Platform Engineer
+M.Tech CSE — AI Platform and Workflow Automation Engineer 
+Focused on building **production‑safe, governable AI systems**
 
 * GitHub: [https://github.com/rupansh01](https://github.com/rupansh01)
 * LinkedIn: [https://www.linkedin.com/in/rupanshkumar](https://www.linkedin.com/in/rupanshkumar)
